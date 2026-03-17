@@ -6,7 +6,6 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  conversationId?: string;
 }
 
 export function useChat() {
@@ -48,6 +47,12 @@ export function useChat() {
         throw new Error(error.error || "Failed to send message");
       }
 
+      // Pick up conversation ID from response header
+      const newConvId = res.headers.get("X-Conversation-Id");
+      if (newConvId) {
+        setConversationId(newConvId);
+      }
+
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response body");
 
@@ -65,59 +70,19 @@ export function useChat() {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6).trim();
-          if (!data) continue;
+          if (!data || data === "[DONE]") continue;
 
           try {
             const event = JSON.parse(data);
 
-            // Chat/agent mode: streaming text chunks
-            if (event.event === "message" || event.event === "agent_message") {
+            if (event.event === "message" && event.answer) {
               setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === "assistant") {
-                  last.content += event.answer || "";
-                  last.id = event.message_id || last.id;
+                const updated = prev.slice(0, -1);
+                const last = prev[prev.length - 1];
+                if (last?.role === "assistant") {
+                  return [...updated, { ...last, content: last.content + event.answer }];
                 }
-                return updated;
-              });
-
-              if (event.conversation_id && !conversationId) {
-                setConversationId(event.conversation_id);
-              }
-            }
-
-            // Workflow mode: streaming text chunks from LLM nodes
-            if (event.event === "text_chunk") {
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === "assistant") {
-                  last.content += event.data?.text || "";
-                }
-                return updated;
-              });
-            }
-
-            // Track conversation ID from workflow events
-            if (event.event === "workflow_started" || event.event === "workflow_finished") {
-              if (event.conversation_id) {
-                setConversationId(event.conversation_id);
-              }
-            }
-
-            if (event.event === "message_end" || event.event === "workflow_finished") {
-              if (event.conversation_id) {
-                setConversationId(event.conversation_id);
-              }
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === "assistant") {
-                  last.id = event.message_id || last.id;
-                  last.conversationId = event.conversation_id;
-                }
-                return updated;
+                return prev;
               });
             }
 
@@ -158,11 +123,6 @@ export function useChat() {
     setConversationId(undefined);
   }, []);
 
-  const loadConversation = useCallback((id: string, loadedMessages: ChatMessage[]) => {
-    setConversationId(id);
-    setMessages(loadedMessages);
-  }, []);
-
   return {
     messages,
     isStreaming,
@@ -170,6 +130,5 @@ export function useChat() {
     sendMessage,
     stopStreaming,
     newConversation,
-    loadConversation,
   };
 }
