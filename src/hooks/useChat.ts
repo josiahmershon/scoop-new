@@ -70,6 +70,7 @@ export function useChat() {
           try {
             const event = JSON.parse(data);
 
+            // Chat/agent mode: streaming text chunks
             if (event.event === "message" || event.event === "agent_message") {
               setMessages((prev) => {
                 const updated = [...prev];
@@ -86,7 +87,26 @@ export function useChat() {
               }
             }
 
-            if (event.event === "message_end") {
+            // Workflow mode: streaming text chunks from LLM nodes
+            if (event.event === "text_chunk") {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last.role === "assistant") {
+                  last.content += event.data?.text || "";
+                }
+                return updated;
+              });
+            }
+
+            // Track conversation ID from workflow events
+            if (event.event === "workflow_started" || event.event === "workflow_finished") {
+              if (event.conversation_id) {
+                setConversationId(event.conversation_id);
+              }
+            }
+
+            if (event.event === "message_end" || event.event === "workflow_finished") {
               if (event.conversation_id) {
                 setConversationId(event.conversation_id);
               }
