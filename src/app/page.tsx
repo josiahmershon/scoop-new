@@ -29,6 +29,10 @@ export default function Home() {
   const handleSend = useCallback(async (query: string) => {
     await sendMessage(query);
     setRefreshKey((k) => k + 1);
+    // Poll for title update (generated async by vLLM)
+    for (const delay of [2000, 4000, 7000]) {
+      setTimeout(() => setRefreshKey((k) => k + 1), delay);
+    }
   }, [sendMessage]);
 
   return (
