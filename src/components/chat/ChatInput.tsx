@@ -18,7 +18,6 @@ export function ChatInput({ onSend, onStop, isStreaming }: ChatInputProps) {
     }
   }, [isStreaming]);
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (el) {
@@ -41,38 +40,46 @@ export function ChatInput({ onSend, onStop, isStreaming }: ChatInputProps) {
   };
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4">
-      <div className="max-w-3xl mx-auto flex gap-3 items-end">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask Scoop anything..."
-          rows={1}
-          className="flex-1 resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          disabled={isStreaming}
-        />
-        {isStreaming ? (
-          <button
-            onClick={onStop}
-            className="rounded-xl bg-red-500 px-4 py-3 text-sm font-medium text-white hover:bg-red-600 transition-colors"
-          >
-            Stop
-          </button>
-        ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={!input.trim()}
-            className="rounded-xl bg-blue-900 px-4 py-3 text-sm font-medium text-white hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
-        )}
+    <div className="border-t border-gray-200 bg-white px-4 py-3">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex gap-2 items-end bg-gray-50 rounded-2xl border border-gray-200 p-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Message Scoop..."
+            rows={1}
+            className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm focus:outline-none placeholder:text-gray-400"
+            disabled={isStreaming}
+          />
+          {isStreaming ? (
+            <button
+              onClick={onStop}
+              className="flex-shrink-0 w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center hover:bg-red-600 transition-colors"
+              title="Stop generating"
+            >
+              <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="6" width="12" height="12" rx="1" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={handleSubmit}
+              disabled={!input.trim()}
+              className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-900 flex items-center justify-center hover:bg-blue-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Send message"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] text-gray-400 text-center mt-1.5">
+          Scoop can make mistakes. Verify important information.
+        </p>
       </div>
-      <p className="text-xs text-gray-400 text-center mt-2">
-        Scoop can make mistakes. Verify important information.
-      </p>
     </div>
   );
 }

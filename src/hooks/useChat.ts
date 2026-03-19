@@ -47,7 +47,6 @@ export function useChat() {
         throw new Error(error.error || "Failed to send message");
       }
 
-      // Pick up conversation ID from response header
       const newConvId = res.headers.get("X-Conversation-Id");
       if (newConvId) {
         setConversationId(newConvId);
@@ -99,12 +98,12 @@ export function useChat() {
       if (error instanceof Error && error.name === "AbortError") return;
 
       setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last.role === "assistant" && !last.content) {
-          last.content = "Sorry, something went wrong. Please try again.";
+        const updated = prev.slice(0, -1);
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && !last.content) {
+          return [...updated, { ...last, content: "Sorry, something went wrong. Please try again." }];
         }
-        return updated;
+        return prev;
       });
       console.error("Chat error:", error);
     } finally {
@@ -123,6 +122,23 @@ export function useChat() {
     setConversationId(undefined);
   }, []);
 
+  const loadConversation = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/chat/conversations?id=${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const msgs: ChatMessage[] = (data.data || []).map((m: { id: string; role: string; content: string }) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+      setConversationId(id);
+      setMessages(msgs);
+    } catch (e) {
+      console.error("Failed to load conversation", e);
+    }
+  }, []);
+
   return {
     messages,
     isStreaming,
@@ -130,5 +146,6 @@ export function useChat() {
     sendMessage,
     stopStreaming,
     newConversation,
+    loadConversation,
   };
 }
