@@ -12,9 +12,10 @@ interface Message {
 interface ChatThreadProps {
   messages: Message[];
   isStreaming: boolean;
+  onSuggestion?: (text: string) => void;
 }
 
-export function ChatThread({ messages, isStreaming }: ChatThreadProps) {
+export function ChatThread({ messages, isStreaming, onSuggestion }: ChatThreadProps) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,13 +34,14 @@ export function ChatThread({ messages, isStreaming }: ChatThreadProps) {
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full">
           {[
-            { label: "Submit an IT ticket", icon: "&#x1F4CB;" },
-            { label: "Look up a procedure", icon: "&#x1F4D6;" },
-            { label: "Help with APEX", icon: "&#x1F4BB;" },
-            { label: "UPC transition info", icon: "&#x1F4E6;" },
+            { label: "Submit an IT ticket", icon: "&#x1F4CB;", message: "I need to submit an IT support ticket." },
+            { label: "Look up a procedure", icon: "&#x1F4D6;", message: "Can you help me look up a company procedure?" },
+            { label: "Help with APEX", icon: "&#x1F4BB;", message: "I need help with APEX." },
+            { label: "UPC transition info", icon: "&#x1F4E6;", message: "What do I need to know about the UPC transition?" },
           ].map((item) => (
             <button
               key={item.label}
+              onClick={() => onSuggestion?.(item.message)}
               className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors text-left shadow-sm"
             >
               <span dangerouslySetInnerHTML={{ __html: item.icon }} />

@@ -112,7 +112,7 @@ export default function Home() {
           </div>
         </header>
 
-        <ChatThread messages={messages} isStreaming={isStreaming} />
+        <ChatThread messages={messages} isStreaming={isStreaming} onSuggestion={handleSend} />
         <ChatInput onSend={handleSend} onStop={stopStreaming} isStreaming={isStreaming} />
       </main>
     </div>

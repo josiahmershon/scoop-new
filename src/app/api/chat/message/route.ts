@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { runAgent, type ChatMessage } from "@/lib/agent";
+import { chatCompletion } from "@/lib/vllm";
 import {
   createConversation,
   getConversation,
@@ -49,10 +50,9 @@ export async function POST(req: NextRequest) {
     history.push({ role: "user", content: query });
     addMessage(randomUUID(), convId, "user", query);
 
-    // Generate title from first message
+    // Generate smart title for new conversations (non-blocking)
     if (isNew) {
-      const title = query.length > 50 ? query.slice(0, 50) + "..." : query;
-      updateConversationTitle(convId, title);
+      generateTitle(query, convId);
     }
 
     // Run agent
@@ -120,5 +120,35 @@ async function captureResponse(stream: ReadableStream<Uint8Array>, convId: strin
     }
   } catch (error) {
     console.error("Failed to capture response:", error);
+  }
+}
+
+/**
+ * Generate a smart conversation title using vLLM.
+ * Runs in the background — doesn't block the response.
+ */
+async function generateTitle(userMessage: string, convId: string) {
+  try {
+    const response = await chatCompletion([
+      {
+        role: "system",
+        content: "Generate a very short title (3-6 words max) for a conversation that starts with the following message. Reply with ONLY the title, no quotes, no punctuation at the end.",
+      },
+      { role: "user", content: userMessage },
+    ]);
+
+    let title = response.choices[0]?.message?.content?.trim() || "";
+    // Strip thinking blocks
+    const closeIdx = title.indexOf("</think>");
+    if (closeIdx !== -1) {
+      title = title.slice(closeIdx + 8).trim();
+    }
+    if (title) {
+      updateConversationTitle(convId, title);
+    }
+  } catch (error) {
+    console.error("Failed to generate title:", error);
+    // Fall back to truncated message
+    updateConversationTitle(convId, userMessage.slice(0, 50));
   }
 }
