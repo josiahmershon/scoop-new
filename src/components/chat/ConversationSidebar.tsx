@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface Conversation {
   id: string;
@@ -13,26 +13,31 @@ interface ConversationSidebarProps {
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
-  refreshKey: number;
 }
 
-export function ConversationSidebar({ currentId, onSelect, onNew, onDelete, refreshKey }: ConversationSidebarProps) {
+export function ConversationSidebar({ currentId, onSelect, onNew, onDelete }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadConversations = async () => {
+    try {
+      const res = await fetch("/api/chat/conversations");
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data.data || []);
+      }
+    } catch (e) {
+      console.error("Failed to load conversations", e);
+    }
+  };
 
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/api/chat/conversations");
-        if (res.ok) {
-          const data = await res.json();
-          setConversations(data.data || []);
-        }
-      } catch (e) {
-        console.error("Failed to load conversations", e);
-      }
-    }
-    load();
-  }, [refreshKey]);
+    loadConversations();
+    intervalRef.current = setInterval(loadConversations, 5000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -43,6 +48,7 @@ export function ConversationSidebar({ currentId, onSelect, onNew, onDelete, refr
         body: JSON.stringify({ id }),
       });
       onDelete(id);
+      loadConversations();
     } catch (e) {
       console.error("Failed to delete conversation", e);
     }

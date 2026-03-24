@@ -8,13 +8,7 @@ import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  const refreshSidebar = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
-
-  const { messages, isStreaming, conversationId, sendMessage, stopStreaming, newConversation, loadConversation } = useChat(refreshSidebar);
+  const { messages, isStreaming, conversationId, sendMessage, stopStreaming, newConversation, loadConversation } = useChat();
 
   const handleNewChat = useCallback(() => {
     newConversation();
@@ -28,13 +22,11 @@ export default function Home() {
     if (conversationId === id) {
       newConversation();
     }
-    refreshSidebar();
-  }, [conversationId, newConversation, refreshSidebar]);
+  }, [conversationId, newConversation]);
 
   const handleSend = useCallback(async (query: string) => {
     await sendMessage(query);
-    refreshSidebar();
-  }, [sendMessage, refreshSidebar]);
+  }, [sendMessage]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -73,7 +65,6 @@ export default function Home() {
             onSelect={handleSelectConversation}
             onNew={handleNewChat}
             onDelete={handleDeleteConversation}
-            refreshKey={refreshKey}
           />
         </div>
 

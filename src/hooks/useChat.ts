@@ -8,7 +8,7 @@ interface ChatMessage {
   content: string;
 }
 
-export function useChat(onTitleUpdate?: () => void) {
+export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
@@ -73,10 +73,6 @@ export function useChat(onTitleUpdate?: () => void) {
 
           try {
             const event = JSON.parse(data);
-
-            if (event.event === "title") {
-              onTitleUpdate?.();
-            }
 
             if (event.event === "message" && event.answer) {
               setMessages((prev) => {
