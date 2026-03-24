@@ -50,22 +50,29 @@ export async function POST(req: NextRequest) {
     history.push({ role: "user", content: query });
     addMessage(randomUUID(), convId, "user", query);
 
-    // Generate smart title for new conversations (non-blocking)
+    // Generate smart title for new conversations (blocking — it's fast)
+    let title: string | undefined;
     if (isNew) {
-      generateTitle(query, convId);
+      title = await generateTitle(query, convId);
     }
 
     // Run agent
     const { stream, conversationMessages } = await runAgent(history);
 
     // Save assistant response after stream completes
-    // We need to tee the stream — one for the client, one to capture the response
     const [clientStream, captureStream] = stream.tee();
-
-    // Capture assistant response in background
     captureResponse(captureStream, convId);
 
-    return new Response(clientStream, {
+    // Prepend a title event to the stream if we have one
+    const encoder = new TextEncoder();
+    const finalStream = title
+      ? prependToStream(
+          encoder.encode(`data: ${JSON.stringify({ event: "title", title, conversationId: convId })}\n\n`),
+          clientStream
+        )
+      : clientStream;
+
+    return new Response(finalStream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -125,9 +132,9 @@ async function captureResponse(stream: ReadableStream<Uint8Array>, convId: strin
 
 /**
  * Generate a smart conversation title using vLLM.
- * Runs in the background — doesn't block the response.
+ * Returns the title string.
  */
-async function generateTitle(userMessage: string, convId: string) {
+async function generateTitle(userMessage: string, convId: string): Promise<string> {
   try {
     const response = await chatCompletion([
       {
@@ -138,17 +145,44 @@ async function generateTitle(userMessage: string, convId: string) {
     ]);
 
     let title = response.choices[0]?.message?.content?.trim() || "";
-    // Strip thinking blocks
     const closeIdx = title.indexOf("</think>");
     if (closeIdx !== -1) {
       title = title.slice(closeIdx + 8).trim();
     }
-    if (title) {
-      updateConversationTitle(convId, title);
-    }
+    title = title || userMessage.slice(0, 50);
+    updateConversationTitle(convId, title);
+    return title;
   } catch (error) {
     console.error("Failed to generate title:", error);
-    // Fall back to truncated message
-    updateConversationTitle(convId, userMessage.slice(0, 50));
+    const fallback = userMessage.slice(0, 50);
+    updateConversationTitle(convId, fallback);
+    return fallback;
   }
+}
+
+/**
+ * Prepend a chunk of data before an existing ReadableStream.
+ */
+function prependToStream(prefix: Uint8Array, stream: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = stream.getReader();
+  let prefixSent = false;
+
+  return new ReadableStream({
+    async pull(controller) {
+      if (!prefixSent) {
+        prefixSent = true;
+        controller.enqueue(prefix);
+        return;
+      }
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(value);
+    },
+    cancel() {
+      reader.cancel();
+    },
+  });
 }

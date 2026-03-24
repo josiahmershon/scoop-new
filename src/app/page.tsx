@@ -7,9 +7,14 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
 
 export default function Home() {
-  const { messages, isStreaming, conversationId, sendMessage, stopStreaming, newConversation, loadConversation } = useChat();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const refreshSidebar = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
+
+  const { messages, isStreaming, conversationId, sendMessage, stopStreaming, newConversation, loadConversation } = useChat(refreshSidebar);
 
   const handleNewChat = useCallback(() => {
     newConversation();
@@ -23,17 +28,13 @@ export default function Home() {
     if (conversationId === id) {
       newConversation();
     }
-    setRefreshKey((k) => k + 1);
-  }, [conversationId, newConversation]);
+    refreshSidebar();
+  }, [conversationId, newConversation, refreshSidebar]);
 
   const handleSend = useCallback(async (query: string) => {
     await sendMessage(query);
-    setRefreshKey((k) => k + 1);
-    // Poll for title update (generated async by vLLM)
-    for (const delay of [2000, 4000, 7000]) {
-      setTimeout(() => setRefreshKey((k) => k + 1), delay);
-    }
-  }, [sendMessage]);
+    refreshSidebar();
+  }, [sendMessage, refreshSidebar]);
 
   return (
     <div className="flex h-screen overflow-hidden">
