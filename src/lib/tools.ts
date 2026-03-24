@@ -8,6 +8,24 @@ export const TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "search_knowledge_base",
+      description:
+        "Search Blue Bell Creameries' internal knowledge base for procedures, policies, documentation, UPC transition info, APEX guides, and other company resources. Use this whenever the user asks about company procedures, policies, or needs information that might be in internal docs.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The search query — be specific and include relevant keywords",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "create_it_ticket",
       description:
         "Create an IT support ticket in SysAid. Use this when the user has described an IT issue and you have gathered enough information (issue description, affected system, and urgency level). Do NOT call this until you have the details needed.",
@@ -32,37 +50,6 @@ export const TOOLS: Tool[] = [
       },
     },
   },
-  // Future tools — uncomment as you build Dify workflows:
-  //
-  // {
-  //   type: "function",
-  //   function: {
-  //     name: "search_knowledge_base",
-  //     description: "Search Blue Bell's internal knowledge base for procedures, policies, and documentation.",
-  //     parameters: {
-  //       type: "object",
-  //       properties: {
-  //         query: { type: "string", description: "Search query" },
-  //       },
-  //       required: ["query"],
-  //     },
-  //   },
-  // },
-  //
-  // {
-  //   type: "function",
-  //   function: {
-  //     name: "check_ticket_status",
-  //     description: "Check the status of an existing IT support ticket by ticket ID.",
-  //     parameters: {
-  //       type: "object",
-  //       properties: {
-  //         ticket_id: { type: "string", description: "The SysAid ticket ID number" },
-  //       },
-  //       required: ["ticket_id"],
-  //     },
-  //   },
-  // },
 ];
 
 /**
@@ -79,61 +66,114 @@ export async function executeTool(toolCall: ToolCall): Promise<string> {
   }
 
   switch (name) {
+    case "search_knowledge_base":
+      return await searchKnowledgeBase(args);
     case "create_it_ticket":
       return await createItTicket(args);
-    // case "search_knowledge_base":
-    //   return await searchKnowledgeBase(args);
-    // case "check_ticket_status":
-    //   return await checkTicketStatus(args);
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });
   }
 }
 
 /**
- * Create an IT ticket via Dify workflow (or direct SysAid API).
- * TODO: Replace with Dify workflow call once the workflow is created.
- * For now, calls SysAid directly.
+ * Search the knowledge base via Dify workflow.
+ */
+async function searchKnowledgeBase(args: Record<string, unknown>): Promise<string> {
+  const DIFY_API_URL = process.env.DIFY_API_URL!;
+  const DIFY_KB_KEY = process.env.DIFY_KB_WORKFLOW_KEY;
+
+  if (!DIFY_KB_KEY) {
+    return JSON.stringify({ error: "Knowledge base workflow not configured" });
+  }
+
+  try {
+    const res = await fetch(`${DIFY_API_URL.replace("/v1", "")}/v1/workflows/run`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${DIFY_KB_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        inputs: { query: String(args.query) },
+        response_mode: "blocking",
+        user: "bb-system",
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      return JSON.stringify({ error: `Knowledge base error: ${error}` });
+    }
+
+    const data = await res.json();
+    const outputs = data.data?.outputs;
+    const result = outputs?.result;
+
+    if (!result || (Array.isArray(result) && result.length === 0)) {
+      return "No relevant documents found in the knowledge base.";
+    }
+
+    // Result might be a string, array of objects, or other format
+    if (typeof result === "string") {
+      return result;
+    }
+
+    if (Array.isArray(result)) {
+      // Extract text content from each chunk
+      return result
+        .map((item: { content?: string; text?: string; [key: string]: unknown }, i: number) => {
+          const text = item.content || item.text || JSON.stringify(item);
+          return `[${i + 1}] ${text}`;
+        })
+        .join("\n\n");
+    }
+
+    return JSON.stringify(result);
+  } catch (error) {
+    return JSON.stringify({ error: `Knowledge base search failed: ${String(error)}` });
+  }
+}
+
+/**
+ * Create an IT ticket via Dify workflow.
  */
 async function createItTicket(args: Record<string, unknown>): Promise<string> {
   const DIFY_API_URL = process.env.DIFY_API_URL!;
   const DIFY_WORKFLOW_KEY = process.env.DIFY_TICKET_WORKFLOW_KEY;
 
-  // If a Dify workflow key is configured, use it
-  if (DIFY_WORKFLOW_KEY) {
-    try {
-      const res = await fetch(`${DIFY_API_URL.replace("/v1", "")}/v1/workflows/run`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${DIFY_WORKFLOW_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          inputs: {
-            issue: args.issue,
-            system: args.system,
-            urgency: String(args.urgency),
-          },
-          response_mode: "blocking",
-          user: "bb-system",
-        }),
-      });
-
-      if (!res.ok) {
-        const error = await res.text();
-        return JSON.stringify({ success: false, error: `Workflow error: ${error}` });
-      }
-
-      const data = await res.json();
-      return JSON.stringify(data.data?.outputs || { success: true, result: "Workflow completed" });
-    } catch (error) {
-      return JSON.stringify({ success: false, error: String(error) });
-    }
+  if (!DIFY_WORKFLOW_KEY) {
+    return JSON.stringify({
+      success: false,
+      error: "Ticket workflow not configured. Set DIFY_TICKET_WORKFLOW_KEY in .env.local",
+    });
   }
 
-  // Fallback: no workflow configured yet
-  return JSON.stringify({
-    success: false,
-    error: "Ticket workflow not configured. Set DIFY_TICKET_WORKFLOW_KEY in .env.local",
-  });
+  try {
+    const res = await fetch(`${DIFY_API_URL.replace("/v1", "")}/v1/workflows/run`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${DIFY_WORKFLOW_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        inputs: {
+          issue: args.issue,
+          system: args.system,
+          urgency: String(args.urgency),
+        },
+        response_mode: "blocking",
+        user: "bb-system",
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      return JSON.stringify({ success: false, error: `Workflow error: ${error}` });
+    }
+
+    const data = await res.json();
+    return JSON.stringify(data.data?.outputs || { success: true, result: "Workflow completed" });
+  } catch (error) {
+    return JSON.stringify({ success: false, error: String(error) });
+  }
 }
