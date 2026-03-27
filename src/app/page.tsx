@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useSession, signOut } from "next-auth/react";
+import { redirect } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
 import { ChatThread } from "@/components/chat/ChatThread";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
 
 export default function Home() {
+  const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { messages, isStreaming, conversationId, sendMessage, stopStreaming, newConversation, loadConversation } = useChat();
 
@@ -27,6 +30,25 @@ export default function Home() {
   const handleSend = useCallback(async (query: string) => {
     await sendMessage(query);
   }, [sendMessage]);
+
+  // Redirect to login if not authenticated
+  if (status === "unauthenticated") {
+    redirect("/login");
+  }
+
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-gray-400 text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  const user = session?.user;
+  const initials = user?.name
+    ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : "??";
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -72,12 +94,21 @@ export default function Home() {
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-blue-800 rounded-full flex items-center justify-center text-xs font-medium">
-              JM
+              {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate">Josiah Mershon</p>
-              <p className="text-[10px] text-gray-500 truncate">IT / AI Specialist</p>
+              <p className="text-xs font-medium truncate">{user?.name || "User"}</p>
+              <p className="text-[10px] text-gray-500 truncate">{user?.email || ""}</p>
             </div>
+            <button
+              onClick={() => signOut()}
+              className="p-1 rounded hover:bg-gray-800 transition-colors"
+              title="Sign out"
+            >
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
           </div>
         </div>
       </aside>

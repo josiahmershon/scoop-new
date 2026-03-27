@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { auth } from "@/lib/auth";
 import { runAgent, type ChatMessage } from "@/lib/agent";
 import { chatCompletion } from "@/lib/vllm";
 import {
@@ -11,11 +12,11 @@ import {
 } from "@/lib/db";
 import { randomUUID } from "crypto";
 
-// Hardcoded user for now — will be replaced with session user from next-auth
-const TEMP_USER = "bb-josiah";
-
 export async function POST(req: NextRequest) {
   try {
+    const session = await auth();
+    const userId = (session?.user as Record<string, unknown>)?.id as string || "bb-josiah";
+
     const { query, conversationId } = await req.json();
 
     if (!query || typeof query !== "string") {
@@ -27,13 +28,13 @@ export async function POST(req: NextRequest) {
     let isNew = false;
 
     if (convId) {
-      const existing = getConversation(convId, TEMP_USER);
+      const existing = getConversation(convId, userId);
       if (!existing) {
         return Response.json({ error: "Conversation not found" }, { status: 404 });
       }
     } else {
       convId = randomUUID();
-      createConversation(TEMP_USER, convId);
+      createConversation(userId, convId);
       isNew = true;
     }
 

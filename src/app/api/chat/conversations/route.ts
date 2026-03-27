@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
+import { auth } from "@/lib/auth";
 import { listConversations, getMessages, deleteConversation } from "@/lib/db";
-
-const TEMP_USER = "bb-josiah";
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await auth();
+    const userId = (session?.user as Record<string, unknown>)?.id as string || "bb-josiah";
+
     const id = req.nextUrl.searchParams.get("id");
 
-    // If id provided, return messages for that conversation
     if (id) {
       const messages = getMessages(id);
       return Response.json({
@@ -22,8 +23,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Otherwise list conversations
-    const conversations = listConversations(TEMP_USER);
+    const conversations = listConversations(userId);
     return Response.json({
       data: conversations.map((c) => ({
         id: c.id,
@@ -43,11 +43,14 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const session = await auth();
+    const userId = (session?.user as Record<string, unknown>)?.id as string || "bb-josiah";
+
     const { id } = await req.json();
     if (!id) {
       return Response.json({ error: "id is required" }, { status: 400 });
     }
-    deleteConversation(id, TEMP_USER);
+    deleteConversation(id, userId);
     return Response.json({ success: true });
   } catch (error) {
     console.error("Delete conversation error:", error);
