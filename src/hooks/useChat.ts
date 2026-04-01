@@ -6,6 +6,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  feedback?: "like" | "dislike" | null;
 }
 
 export function useChat() {
@@ -127,10 +128,11 @@ export function useChat() {
       const res = await fetch(`/api/chat/conversations?id=${id}`);
       if (!res.ok) return;
       const data = await res.json();
-      const msgs: ChatMessage[] = (data.data || []).map((m: { id: string; role: string; content: string }) => ({
+      const msgs: ChatMessage[] = (data.data || []).map((m: { id: string; role: string; content: string; feedback?: string | null }) => ({
         id: m.id,
         role: m.role as "user" | "assistant",
         content: m.content,
+        feedback: m.feedback as "like" | "dislike" | null | undefined,
       }));
       setConversationId(id);
       setMessages(msgs);

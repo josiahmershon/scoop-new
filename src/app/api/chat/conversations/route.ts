@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
             id: m.id,
             role: m.role,
             content: m.content,
+            feedback: m.feedback || null,
             created_at: m.created_at,
           })),
       });

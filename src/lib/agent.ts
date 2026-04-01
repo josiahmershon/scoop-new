@@ -46,7 +46,8 @@ function stripThinking(text: string): string {
  * 3. When vLLM returns text, send it as a stream to the client
  */
 export async function runAgent(
-  userMessages: ChatMessage[]
+  userMessages: ChatMessage[],
+  context?: { userName?: string }
 ): Promise<AgentResult> {
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -84,7 +85,7 @@ export async function runAgent(
     // Execute all tool calls in parallel
     const toolResults = await Promise.all(
       message.tool_calls.map(async (toolCall) => {
-        const result = await executeTool(toolCall);
+        const result = await executeTool(toolCall, context);
         return {
           role: "tool" as const,
           content: result,

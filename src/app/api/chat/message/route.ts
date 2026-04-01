@@ -15,7 +15,9 @@ import { randomUUID } from "crypto";
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    const userId = (session?.user as Record<string, unknown>)?.id as string || "bb-josiah";
+    const sessionUser = session?.user as Record<string, unknown> | undefined;
+    const userId = sessionUser?.id as string || "bb-josiah";
+    const userName = sessionUser?.name as string || "Unknown";
 
     const { query, conversationId } = await req.json();
 
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Run agent
-    const { stream } = await runAgent(history);
+    const { stream } = await runAgent(history, { userName });
 
     // Save assistant response after stream completes
     const [clientStream, captureStream] = stream.tee();

@@ -32,21 +32,21 @@ export const TOOLS: Tool[] = [
       parameters: {
         type: "object",
         properties: {
-          issue: {
+          title: {
             type: "string",
-            description: "Clear description of the IT issue",
+            description: "Short ticket title, e.g. 'Outlook - Cannot receive emails'",
           },
-          system: {
+          description: {
             type: "string",
-            description: "The affected system or application (e.g. Outlook, VPN, Monitor, Printer, SAP, APEX)",
+            description: "Detailed description of the IT issue",
           },
           urgency: {
-            type: "number",
+            type: "string",
             description: "Urgency level: 1=Low, 2=Normal, 3=High, 4=Urgent, 5=Critical",
-            enum: [1, 2, 3, 4, 5],
+            enum: ["1", "2", "3", "4", "5"],
           },
         },
-        required: ["issue", "system", "urgency"],
+        required: ["title", "description", "urgency"],
       },
     },
   },
@@ -55,7 +55,7 @@ export const TOOLS: Tool[] = [
 /**
  * Execute a tool call. Routes to the appropriate handler.
  */
-export async function executeTool(toolCall: ToolCall): Promise<string> {
+export async function executeTool(toolCall: ToolCall, context?: { userName?: string }): Promise<string> {
   const { name, arguments: argsStr } = toolCall.function;
 
   let args: Record<string, unknown>;
@@ -69,7 +69,7 @@ export async function executeTool(toolCall: ToolCall): Promise<string> {
     case "search_knowledge_base":
       return await searchKnowledgeBase(args);
     case "create_it_ticket":
-      return await createItTicket(args);
+      return await createItTicket(args, context?.userName);
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });
   }
@@ -135,9 +135,9 @@ async function searchKnowledgeBase(args: Record<string, unknown>): Promise<strin
 }
 
 /**
- * Create an IT ticket via Dify workflow.
+ * Create an IT ticket via Dify workflow → SysAid.
  */
-async function createItTicket(args: Record<string, unknown>): Promise<string> {
+async function createItTicket(args: Record<string, unknown>, userName?: string): Promise<string> {
   const DIFY_API_URL = process.env.DIFY_API_URL!;
   const DIFY_WORKFLOW_KEY = process.env.DIFY_TICKET_WORKFLOW_KEY;
 
@@ -157,9 +157,10 @@ async function createItTicket(args: Record<string, unknown>): Promise<string> {
       },
       body: JSON.stringify({
         inputs: {
-          issue: args.issue,
-          system: args.system,
-          urgency: String(args.urgency),
+          title: String(args.title),
+          description: String(args.description),
+          urgency: String(args.urgency || "3"),
+          requester_name: userName || "Unknown",
         },
         response_mode: "blocking",
         user: "bb-system",
@@ -172,7 +173,20 @@ async function createItTicket(args: Record<string, unknown>): Promise<string> {
     }
 
     const data = await res.json();
-    return JSON.stringify(data.data?.outputs || { success: true, result: "Workflow completed" });
+    const outputs = data.data?.outputs;
+
+    if (outputs?.success === "true") {
+      return JSON.stringify({
+        success: true,
+        ticket_id: outputs.ticket_id,
+        message: `IT ticket #${outputs.ticket_id} has been created successfully.`,
+      });
+    }
+
+    return JSON.stringify({
+      success: false,
+      error: outputs?.error || "Unknown error creating ticket",
+    });
   } catch (error) {
     return JSON.stringify({ success: false, error: String(error) });
   }

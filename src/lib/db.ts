@@ -32,6 +32,7 @@ function initTables(db: Database.Database) {
       content TEXT NOT NULL,
       tool_calls TEXT,
       tool_call_id TEXT,
+      feedback TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     );
@@ -39,6 +40,12 @@ function initTables(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
   `);
+
+  // Migration: add feedback column if missing (for existing databases)
+  const cols = db.pragma("table_info(messages)") as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "feedback")) {
+    db.exec("ALTER TABLE messages ADD COLUMN feedback TEXT");
+  }
 }
 
 // --- Conversations ---
@@ -101,6 +108,11 @@ export function getMessages(conversationId: string) {
     "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC"
   ).all(conversationId) as Array<{
     id: string; conversation_id: string; role: string; content: string;
-    tool_calls: string | null; tool_call_id: string | null; created_at: string;
+    tool_calls: string | null; tool_call_id: string | null; feedback: string | null; created_at: string;
   }>;
+}
+
+export function updateMessageFeedback(messageId: string, feedback: "like" | "dislike" | null): void {
+  const db = getDb();
+  db.prepare("UPDATE messages SET feedback = ? WHERE id = ?").run(feedback, messageId);
 }

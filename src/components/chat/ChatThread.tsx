@@ -7,6 +7,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  feedback?: "like" | "dislike" | null;
 }
 
 interface ChatThreadProps {
@@ -61,6 +62,8 @@ export function ChatThread({ messages, isStreaming, onSuggestion }: ChatThreadPr
             key={msg.id}
             role={msg.role}
             content={msg.content}
+            messageId={msg.id}
+            initialFeedback={msg.feedback}
             isStreaming={isStreaming && i === messages.length - 1 && msg.role === "assistant"}
           />
         ))}
